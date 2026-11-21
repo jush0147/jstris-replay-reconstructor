@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jstris-replay"
+version = "1.0.0"
+description = "Jstris Replay Code Decoder and Full Match State Reconstructor"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+jstris-replay = "jstris_replay.cli:main"

@@ -248,7 +248,7 @@ class _V3BitReader:
         return val
 
 
-def parse_metadata(raw_c: dict[str, Any], coy_code: int, binary_bytes: int) -> ReplayMetadata:
+def parse_metadata(raw_c: dict[str, Any], replay_code_length: int, binary_bytes: int) -> ReplayMetadata:
     """Parse Jstris replay metadata ('c' object) including composite mode 'm'."""
     version = float(raw_c.get("v", 3.3))
     soft_drop_id = int(raw_c.get("softDropId", 2))
@@ -336,7 +336,7 @@ def parse_metadata(raw_c: dict[str, Any], coy_code: int, binary_bytes: int) -> R
         randomizer_type=rnd_type,
         show_previews=show_previews,
         hold_enabled=hold_enabled,
-        replay_code_length=coy_code,
+        replay_code_length=replay_code_length,
         binary_data_bytes=binary_bytes,
     )
 

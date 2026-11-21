@@ -23,9 +23,40 @@ def build_summary(decoded: DecodedReplay, sim: JstrisSimulator) -> dict[str, Any
     # Sequence of all 100 garbage hole columns added over the entire match (post-hoc replay info)
     full_garbage_hole_sequence = [g["hole_column"] for g in sim.all_garbage_events]
 
+    all_events_processed = sim.ptr == len(decoded.events)
+    timestamps = [ev.timestamp_ms for ev in decoded.events]
+    timestamps_monotonic = timestamps == sorted(timestamps)
+    clock_matches_duration = sim.clock == decoded.metadata.duration_ms
+    if decoded.metadata.pmode in (1, 3) and decoded.metadata.sub_mode != 100:
+        mode_completed = sim.lines_remaining == 0
+        if decoded.metadata.pmode == 3:
+            mode_completed = (
+                mode_completed
+                and sim.gamedata["garbageCleared"] == decoded.metadata.target_lines
+                and sim.count_garbage_height() == 0
+            )
+    else:
+        mode_completed = not sim.anomalies
+
+    state_consistent = (
+        len(sim.placements) == sim.placed_blocks
+        and len(sim.decision_states) == sim.placed_blocks
+        and len(sim.anomalies) == 0
+    )
+
+    is_verified = (
+        len(sim.anomalies) == 0
+        and decoded.terminator_found
+        and all_events_processed
+        and timestamps_monotonic
+        and clock_matches_duration
+        and mode_completed
+        and state_consistent
+    )
+
     return {
         "verification": {
-            "status": "VERIFIED" if not sim.anomalies else "ANOMALIES_DETECTED",
+            "status": "VERIFIED" if is_verified else "ANOMALIES_DETECTED",
             "anomalies": sim.anomalies,
             "all_locks_legal": len(sim.anomalies) == 0,
             "terminator_0xfff_found": decoded.terminator_found,
@@ -33,11 +64,14 @@ def build_summary(decoded: DecodedReplay, sim: JstrisSimulator) -> dict[str, Any
             "bits_available": decoded.total_bits_available,
             "events_processed": sim.ptr,
             "total_events": len(decoded.events),
+            "all_events_processed": all_events_processed,
+            "timestamps_monotonic": timestamps_monotonic,
             "target_lines_completed": sim.lines_remaining == 0,
+            "mode_completion_verified": mode_completed,
+            "state_self_consistent": state_consistent,
             "recorded_duration_ms": decoded.metadata.duration_ms,
             "final_event_clock_ms": sim.clock,
-            "clock_matches_metadata_duration": sim.clock == decoded.metadata.duration_ms,
-            "verified_162_blocks_claim": sim.placed_blocks == 162,
+            "clock_matches_metadata_duration": clock_matches_duration,
         },
         "game_overview": {
             "mode_raw": decoded.metadata.raw_mode,
@@ -96,6 +130,9 @@ def build_summary(decoded: DecodedReplay, sim: JstrisSimulator) -> dict[str, Any
             "matrix": sim.matrix,
             "ascii": matrix_to_ascii_rows(sim.matrix),
             "deadline": sim.deadline,
+            "active_piece_at_finish": PIECE_NAMES[sim.active_piece_id],
+            "hold_piece_at_finish": PIECE_NAMES[sim.hold_piece_id] if sim.hold_piece_id is not None else None,
+            "visible_previews_at_finish": [PIECE_NAMES[pid] for pid in sim.queue[: sim.show_previews]],
             "active_piece_at_finise": PIECE_NAMES[sim.active_piece_id],
             "hold_piece_at_finise": PIECE_NAMES[sim.hold_piece_id] if sim.hold_piece_id is not None else None,
             "visible_previews_at_finise": [PIECE_NAMES[pid] for pid in sim.queue[: sim.show_previews]],

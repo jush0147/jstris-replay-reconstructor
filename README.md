@@ -46,6 +46,9 @@ cd /home/antigravity/jstris-replay-tool
 # 從檔案讀取 Replay Code 並輸出結構化 JSON 至 ./output
 python3 -m jstris_replay -i data/sample_100l_cheese_replay.txt -o output
 
+# 執行第二份獨立驗證樣本 (seed='cktcp')
+python3 -m jstris_replay -i data/sample_100l_cheese_replay_2.txt -o output_2
+
 # 或直接傳入 Replay Code 字串
 python3 -m jstris_replay -c "N4IgxiBcoG5QzAOngGhAZw..." -o output
 ```
@@ -66,7 +69,6 @@ export_all_json(decoded, sim, "./output")
 ### 3. 執行自動化測試
 
 ```bash
-cd /home/antigravity/jstris-replay-tool
 python3 -m unittest discover -v -s tests
 ```
 
@@ -76,8 +78,17 @@ python3 -m unittest discover -v -s tests
 
 | 檔案名稱 | 用途與內容 |
 | :--- | :--- |
-| `metadata.json` | 完整解析後的 Metadata（版本 `3.3`、模式 `196611` -> `Cheese Race 100L`、Seed `zglrnd`、起訖時間 `47.695s`、Soft Drop `Instant (steps=20)`、DAS `75ms`、Ruleset 等）。 |
-| `events.json` | 全部 **864** 個二進位操作事件的時間序列（包含 `index`、`timestamp_ms`、`raw_12bit_ts`、`epoch_wrap_count`、`action_code`、`action_name`、`data`、`bit_offset`、`bit_length`、`hard_drop_id`）。 |
-| `placements.json` | 全部 **162** 次方塊鎖定（落子）的完整紀錄：包含落子序號、當前方塊、Hold 狀態、可見 5 預覽、落子前盤面、最終鎖定 `(x, y, rot)` 與佔用座標、消行前/消行後/垃圾補充後三階段盤面、消除行數、消除垃圾行數、剩餘目標行數、攻擊量、Finesse、該手完整按鍵序列。 |
-| `states.json` | 專為 Tetris AI 決策分析設計的 **162** 個合法決策觀測快照（`observable_state` 嚴格只包含該決策當下合法可見的 20x10 盤面、Active 方塊、Hold 方塊、5 個可見 Previews 與進度資訊，絕不洩漏未來牌序或未知垃圾孔位）以及該手實際採取的 `chosen_action`。 |
-| `summary.json` | 對局完整統計、最終盤面、正確性驗證報告，以及嚴格區分的「合法可觀測狀態 vs. Replay 事後重建完整序列 vs. 無法僅由 Replay 還原之資訊」。 |
+| `metadata.json` | 完整解析後的 Metadata（版本 `3.3`、模式 `196611` -> `Cheese Race 100L`、Seed、起訖時間、Soft Drop `Instant (steps=20)`、DAS `75ms`、Ruleset 等）。 |
+| `events.json` | 全部二進位操作事件的時間序列（包含 `index`、`timestamp_ms`、`raw_12bit_ts`、`epoch_wrap_count`、`action_code`、`action_name`、`data`、`bit_offset`、`bit_length`、`hard_drop_id`）。 |
+| `placements.json` | 全部方塊鎖定（落子）的完整紀錄：包含落子序號、當前方塊、Hold 狀態、可見 5 預覽、落子前盤面、最終鎖定 `(x, y, rot)` 與佔用座標、消行前/消行後/垃圾補充後三階段盤面、消除行數、消除垃圾行數、剩餘目標行數、攻擊量、Finesse、該手完整按鍵序列。 |
+| `states.json` | 專為 Tetris AI 決策分析設計的合法決策觀測快照（`observable_state` 嚴格只包含該決策當下合法可見的 20x10 盤面、Active 方塊、Hold 方塊、5 個可見 Previews 與進度資訊，絕不洩漏未來牌序或未知垃圾孔位）以及該手實際採取的 `chosen_action`。 |
+| `summary.json` | 對局完整統計、最終盤面、多維度正確性驗證報告（`VERIFIED` 檢查合法落點、`0xFFF` 終止符、事件完整處理、時間戳單調性與對局完成條件），以及嚴格區分的「合法可觀測狀態 vs. Replay 事後重建完整序列 vs. 無法僅由 Replay 還原之資訊」。 |
+
+---
+
+## 四、內建雙樣本驗證基準 (`data/`)
+
+| 樣本檔案 | 遊戲模式 | Seed | 遊戲時間 | 事件總數 | 放置方塊數 | 總消行 / 垃圾行消除 | 分數 / 攻擊 |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `data/sample_100l_cheese_replay.txt` | Cheese Race 100L (`m=196611`) | `zglrnd` | `47.695 s` (`47695 ms`) | `864` | `162` | `154` 行 / `100` 垃圾行 | `34004` pts / `106` atk |
+| `data/sample_100l_cheese_replay_2.txt` | Cheese Race 100L (`m=196611`) | `cktcp` | `48.838 s` (`48838 ms`) | `875` | `167` | `156` 行 / `100` 垃圾行 | `33834` pts / `104` atk |

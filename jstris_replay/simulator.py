@@ -279,7 +279,7 @@ def get_occupied_cells(piece_id: int, rot: int, x: int, y: int) -> list[tuple[in
     for r in range(4):
         for c in range(4):
             if grid[r][c] > 0:
-                cecls.append((y + r, x + c))
+                cells.append((y + r, x + c))
     return cells
 
 
@@ -770,7 +770,7 @@ class JstrisSimulator:
             return
         solid_row = [9] * 10
         self.deadline = list(self.matrix[0])
-        for r in range(lde(self.matrix)):
+        for r in range(len(self.matrix)):
             if len(self.matrix) - r > 1:
                 self.matrix[r] = list(self.matrix[r + 1])
             else:
@@ -1147,16 +1147,16 @@ class JstrisSimulator:
             observable_at_turn_start={
                 "active_piece": PIECE_NAMES[self._turn_start_active_id],
                 "hold_piece": hold_before_turn_str,
-                "can_hold": True,
+                "can_hold": self.hold_enabled,
                 "visible_previews": list(self._turn_start_previews),
                 "board_ascii": matrix_to_ascii_rows(self._turn_start_board),
                 "garbage_height": self._turn_start_garbage_height,
                 "lines_remaining": self._turn_start_lines_remaining,
             },
-            observable_at_oock={
+            observable_at_lock={
                 "active_piece": locked_piece_name,
                 "hold_piece": hold_after_lock_str,
-                "can_hold": not self._turn_hold_used,
+                "can_hold": self.hold_enabled and not self._turn_hold_used,
                 "visible_previews": list(previews_at_lock),
                 "board_ascii": matrix_to_ascii_rows(board_before_lock),
                 "garbage_height": garbage_h_before,
@@ -1227,7 +1227,7 @@ class JstrisSimulator:
                 event_index=rec.turn_start_event_index,
                 active_piece=PIECE_NAMES[self._turn_start_active_id],
                 hold_piece=hold_before_turn_str,
-                can_hold=True,
+                can_hold=self.hold_enabled,
                 visible_previews=list(self._turn_start_previews),
                 board=clone_matrix(self._turn_start_board),
                 board_ascii=matrix_to_ascii_rows(self._turn_start_board),
@@ -1336,6 +1336,67 @@ class JstrisSimulator:
             elif ev.aux_code == AuxType.WIDE_GARBAGE_ADD:
                 lines, col, gap_w, g_inv = ev.data[0], ev.data[1], ev.data[2], ev.data[3]
                 self.garbage_add_adv(lines, col, gap_w, g_inv)
+            elif ev.aux_code == AuxType.AFK:
+                pass
+            else:
+                self.anomalies.append(
+                    f"Event {ev.index} (t={ev.timestamp_ms}ms): Unhandled AUX sub-action '{ev.aux_name}' (code={ev.aux_code})"
+                )
+
+    def _run_integrity_verification(self) -> None:
+        """Perform comprehensive post-simulation integrity, bitstream, timing, and mode-completion verification."""
+        if not self.decoded.terminator_found:
+            self.anomalies.append(
+                f"Bitstream missing 0xFFF (4095) terminator (read {self.decoded.total_bits_read}/{self.decoded.total_bits_available} bits)."
+            )
+
+        if self.ptr != len(self.events):
+            self.anomalies.append(
+                f"Incomplete event processing: processed {self.ptr} of {len(self.events)} events."
+            )
+
+        for i in range(1, len(self.events)):
+            if self.events[i].timestamp_ms < self.events[i - 1].timestamp_ms:
+                self.anomalies.append(
+                    f"Non-monotonic event timestamp at index {i}: {self.events[i].timestamp_ms}ms < {self.events[i - 1].timestamp_ms}ms"
+                )
+
+        if self.meta.duration_ms > 0 and self.clock != self.meta.duration_ms:
+            self.anomalies.append(
+                f"Final event clock ({self.clock}ms) does not match metadata duration ({self.meta.duration_ms}ms)."
+            )
+
+        if len(self.placements) != self.placed_blocks:
+            self.anomalies.append(
+                f"Placement record count ({len(self.placements)}) does not match placed_blocks ({self.placed_blocks})."
+            )
+
+        if len(self.decision_states) != self.placed_blocks:
+            self.anomalies.append(
+                f"Decision state count ({len(self.decision_states)}) does not match placed_blocks ({self.placed_blocks})."
+            )
+
+        if self._turn_actions:
+            self.anomalies.append(
+                f"Found {len(self._turn_actions)} trailing uncommitted action(s) after the final placement."
+            )
+
+        # Mode-specific completion & invariant verification
+        if self.meta.pmode in (1, 3) and self.meta.sub_mode != 100:
+            if self.lines_remaining != 0:
+                self.anomalies.append(
+                    f"Mode '{self.meta.mode_description}' target not completed: lines_remaining={self.lines_remaining} (expected 0)."
+                )
+        if self.meta.pmode == 3 and self.meta.sub_mode != 100:
+            if self.gamedata["garbageCleared"] != self.meta.target_lines:
+                self.anomalies.append(
+                    f"Cheese Race garbageCleared ({self.gamedata['garbageCleared']}) != target_lines ({self.meta.target_lines})."
+                )
+            final_garbage_h = self.count_garbage_height()
+            if final_garbage_h != 0:
+                self.anomalies.append(
+                    f"Cheese Race finished with non-zero remaining garbage height ({final_garbage_h})."
+                )
 
     def run(self) -> None:
         """Execute full Jstris Replayer lifecycle: initReplay() -> restart() -> playUntilTime()."""
@@ -1391,6 +1452,7 @@ class JstrisSimulator:
                     self.clock = g_ev.timestamp_ms
                     self.process_action(g_ev)
                     self.ptr += 1
+                self._turn_actions = []
                 if self.ptr < len(self.events):
                     self._capture_turn_start(self.ptr, self.clock)
 
@@ -1398,6 +1460,8 @@ class JstrisSimulator:
             self.reached_end = True
             if self.events:
                 self.clock = self.events[-1].timestamp_ms
+
+        self._run_integrity_verification()
 
     def get_pps(self) -> float:
         if self.clock <= 0:

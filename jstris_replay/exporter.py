@@ -144,11 +144,35 @@ def build_summary(decoded: DecodedReplay, sim: JstrisSimulator) -> dict[str, Any
                     "(including currently visible garbage rows), the active falling piece, the current hold piece, "
                     f"and the {sim.show_previews} visible preview pieces in the queue."
                 ),
+                "allowed_observable_state_fields": [
+                    "active_piece",
+                    "hold_piece",
+                    "can_hold",
+                    "visible_previews",
+                    "board",
+                    "board_ascii",
+                    "garbage_height",
+                    "lines_remaining",
+                    "cumulative_lines_cleared",
+                    "cumulative_garbage_cleared",
+                    "combo",
+                    "back_to_back",
+                ],
                 "visible_preview_count": sim.show_previews,
                 "hold_enabled": sim.hold_enabled,
                 "initial_cheese_garbage_rows": 9,
                 "min_cheese_garbage_rows": 3,
                 "max_cheese_garbage_rows": 9,
+            },
+            "internal_simulator_state_not_observable": {
+                "description": (
+                    "Internal Jstris GameCore / Replayer state required for exact physics verification "
+                    "(such as the off-screen row y=-1 'deadline' buffer, PRNG internal state, or full unpopped queue) "
+                    "is excluded from observable_state and stored separately under internal_state."
+                ),
+                "excluded_fields": [
+                    "deadline",
+                ],
             },
             "post_hoc_replay_reconstructed_only": {
                 "description": (

@@ -37,13 +37,27 @@ ALLOWED_OBSERVABLE_STATE_KEYS = {
     "visible_previews",
     "board",
     "board_ascii",
-    "deadline",
     "garbage_height",
     "lines_remaining",
     "cumulative_lines_cleared",
     "cumulative_garbage_cleared",
     "combo",
     "back_to_back",
+}
+
+FORBIDDEN_OBSERVABLE_STATE_KEYS = {
+    "deadline",
+    "deadline_before_lock",
+    "internal_state",
+    "queue",
+    "generated_pieces_history",
+    "full_generated_piece_sequence",
+    "full_garbage_hole_columns_100",
+    "all_garbage_events",
+    "garbage_added_after_placement",
+    "seed",
+    "block_rng",
+    "randomizer",
 }
 
 
@@ -150,14 +164,29 @@ class TestJstrisReplaySample1Zglrnd(unittest.TestCase):
 
     def test_observable_vs_posthoc_separation(self) -> None:
         for state in self.sim.decision_states:
-            obs = state.to_dict()["observable_state"]
+            state_dict = state.to_dict()
+            obs = state_dict["observable_state"]
             self.assertEqual(set(obs.keys()), ALLOWED_OBSERVABLE_STATE_KEYS)
+            for forbidden_key in FORBIDDEN_OBSERVABLE_STATE_KEYS:
+                self.assertNotIn(forbidden_key, obs)
             self.assertEqual(len(obs["visible_previews"]), 5)
             self.assertEqual(len(obs["board"]), 20)
             self.assertTrue(all(len(row) == 10 for row in obs["board"]))
+            # Internal state is kept strictly separate from observable_state
+            self.assertIn("internal_state", state_dict)
+            self.assertIn("deadline", state_dict["internal_state"])
+            self.assertEqual(len(state_dict["internal_state"]["deadline"]), 10)
+
+        for p in self.sim.placements:
+            p_dict = p.to_dict()
+            for obs_sub in (p_dict["observable_at_turn_start"], p_dict["observable_at_lock"]):
+                for forbidden_key in FORBIDDEN_OBSERVABLE_STATE_KEYS:
+                    self.assertNotIn(forbidden_key, obs_sub)
 
         info_bound = self.summary["information_boundary"]
         self.assertEqual(info_bound["legally_observable_at_decision_time"]["visible_preview_count"], 5)
+        self.assertNotIn("deadline", info_bound["legally_observable_at_decision_time"]["allowed_observable_state_fields"])
+        self.assertIn("deadline", info_bound["internal_simulator_state_not_observable"]["excluded_fields"])
         self.assertEqual(len(info_bound["post_hoc_replay_reconstructed_only"]["full_garbage_hole_columns_100"]), 100)
 
     def test_exporter_writes_all_required_files(self) -> None:
@@ -262,16 +291,25 @@ class TestJstrisReplaySample2Cktcp(unittest.TestCase):
 
     def test_observable_state_audit_and_exporter(self) -> None:
         for state in self.sim.decision_states:
-            obs = state.to_dict()["observable_state"]
+            state_dict = state.to_dict()
+            obs = state_dict["observable_state"]
             self.assertEqual(set(obs.keys()), ALLOWED_OBSERVABLE_STATE_KEYS)
+            for forbidden_key in FORBIDDEN_OBSERVABLE_STATE_KEYS:
+                self.assertNotIn(forbidden_key, obs)
             self.assertEqual(len(obs["visible_previews"]), 5)
             self.assertEqual(len(obs["board"]), 20)
             self.assertTrue(all(len(row) == 10 for row in obs["board"]))
+            self.assertIn("internal_state", state_dict)
+            self.assertIn("deadline", state_dict["internal_state"])
+            self.assertEqual(len(state_dict["internal_state"]["deadline"]), 10)
 
         for p in self.sim.placements:
             p_dict = p.to_dict()
             self.assertIn("observable_at_lock", p_dict)
             self.assertNotIn("observable_at_oock", p_dict)
+            for obs_sub in (p_dict["observable_at_turn_start"], p_dict["observable_at_lock"]):
+                for forbidden_key in FORBIDDEN_OBSERVABLE_STATE_KEYS:
+                    self.assertNotIn(forbidden_key, obs_sub)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             paths = export_all_json(self.decoded, self.sim, tmpdir)
@@ -280,6 +318,10 @@ class TestJstrisReplaySample2Cktcp(unittest.TestCase):
                 self.assertTrue(paths[key].exists())
                 parsed = json.loads(paths[key].read_text(encoding="utf-8"))
                 self.assertTrue(len(parsed) > 0)
+            states_json = json.loads(paths["states"].read_text(encoding="utf-8"))
+            for item in states_json:
+                self.assertNotIn("deadline", item["observable_state"])
+                self.assertIn("deadline", item["internal_state"])
 
 
 class TestIntegrityAndErrorDetection(unittest.TestCase):

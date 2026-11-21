@@ -463,13 +463,15 @@ class DecisionStateSnapshot:
                 "visible_previews": self.visible_previews,
                 "board": self.board,
                 "board_ascii": self.board_ascii,
-                "deadline": self.deadline,
                 "garbage_height": self.garbage_height,
                 "lines_remaining": self.lines_remaining,
                 "cumulative_lines_cleared": self.cumulative_lines_cleared,
                 "cumulative_garbage_cleared": self.cumulative_garbage_cleared,
                 "combo": self.combo,
                 "back_to_back": self.back_to_back,
+            },
+            "internal_state": {
+                "deadline": self.deadline,
             },
             "chosen_action": self.chosen_action,
         }

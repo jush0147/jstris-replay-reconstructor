@@ -81,7 +81,7 @@ python3 -m unittest discover -v -s tests
 | `metadata.json` | 完整解析後的 Metadata（版本 `3.3`、模式 `196611` -> `Cheese Race 100L`、Seed、起訖時間、Soft Drop `Instant (steps=20)`、DAS `75ms`、Ruleset 等）。 |
 | `events.json` | 全部二進位操作事件的時間序列（包含 `index`、`timestamp_ms`、`raw_12bit_ts`、`epoch_wrap_count`、`action_code`、`action_name`、`data`、`bit_offset`、`bit_length`、`hard_drop_id`）。 |
 | `placements.json` | 全部方塊鎖定（落子）的完整紀錄：包含落子序號、當前方塊、Hold 狀態、可見 5 預覽、落子前盤面、最終鎖定 `(x, y, rot)` 與佔用座標、消行前/消行後/垃圾補充後三階段盤面、消除行數、消除垃圾行數、剩餘目標行數、攻擊量、Finesse、該手完整按鍵序列。 |
-| `states.json` | 專為 Tetris AI 決策分析設計的合法決策觀測快照（`observable_state` 嚴格只包含該決策當下合法可見的 20x10 盤面、Active 方塊、Hold 方塊、5 個可見 Previews 與進度資訊，絕不洩漏未來牌序或未知垃圾孔位）以及該手實際採取的 `chosen_action`。 |
+| `states.json` | 專為 Tetris AI 決策分析設計的合法決策觀測快照（`observable_state` 嚴格只包含該決策當下合法可見的 20x10 盤面、Active 方塊、Hold 方塊、5 個可見 Previews 與進度資訊，絕不洩漏未來牌序、未知垃圾孔位或模擬器內部 `deadline`；內部頂部緩衝列則獨立存放於 `internal_state`）以及該手實際採取的 `chosen_action`。 |
 | `summary.json` | 對局完整統計、最終盤面、多維度正確性驗證報告（`VERIFIED` 檢查合法落點、`0xFFF` 終止符、事件完整處理、時間戳單調性與對局完成條件），以及嚴格區分的「合法可觀測狀態 vs. Replay 事後重建完整序列 vs. 無法僅由 Replay 還原之資訊」。 |
 
 ---
